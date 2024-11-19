@@ -2,7 +2,7 @@
   "name": "test-proj",
   "version": "1.0.0",
   "scripts": {
-    "build": "hardhat compile",
+    "build": "hardhat clean && hardhat compile",
     "test": "hardhat test"
   },
   "main": "index.js",
