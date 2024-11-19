@@ -1,47 +1,25 @@
 require("@nomiclabs/hardhat-ethers");
 
-// Function to check if a contract is a test contract
-function isTestContract(contractPath) {
-  return contractPath.includes('/test/') || 
-         contractPath.includes('/mocks/') ||
-         contractPath.toLowerCase().includes('test') ||
-         contractPath.toLowerCase().includes('mock');
-}
-
-// Task to check contract sizes
-task("check-contract-sizes", "Checks that production contracts don't exceed size limit")
-  .setAction(async function (_, { artifacts }) {
-    const contractNames = await artifacts.getAllFullyQualifiedNames();
-    let hasOversizedContract = false;
-
-    for (const contractName of contractNames) {
-      const artifact = await artifacts.readArtifact(contractName);
-      const contractSize = artifact.deployedBytecode.length / 2;
-      
-      // Skip size check for test contracts
-      if (isTestContract(contractName)) {
-        continue;
-      }
-
-      if (contractSize > 24576) {
-        console.error(
-          `Error: Contract ${contractName} is too large (${contractSize} bytes)! ` +
-          `Production contracts must not exceed 24576 bytes.`
-        );
-        hasOversizedContract = true;
-      }
-    }
-
-    if (hasOversizedContract) {
-      throw new Error("One or more production contracts exceed size limit!");
-    }
-});
-
-// Override the built-in compile task
+// This task override enforces the contract size limit defined by EIP-170
 task("compile")
   .setAction(async function (args, hre, runSuper) {
     await runSuper(args);
-    await hre.run("check-contract-sizes");
+    
+    const contractNames = await hre.artifacts.getAllFullyQualifiedNames();
+    for (const name of contractNames) {
+      const { deployedBytecode } = await hre.artifacts.readArtifact(name);
+      // Skip if no deployed bytecode (e.g. interfaces)
+      if (!deployedBytecode || deployedBytecode === "0x") continue;
+
+      // Remove "0x" prefix and calculate bytes
+      const size = (deployedBytecode.length - 2) / 2;
+      if (size > 24576) {
+        throw new Error(
+          `Contract ${name} is too large (${size} bytes)! ` +
+          `Must not exceed 24576 bytes (EIP-170).`
+        );
+      }
+    }
 });
 
 /** @type import('hardhat/config').HardhatUserConfig */
